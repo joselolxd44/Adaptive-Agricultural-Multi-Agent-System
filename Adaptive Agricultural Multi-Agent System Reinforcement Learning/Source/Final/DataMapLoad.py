@@ -4,7 +4,7 @@ import rasterio
 from bmi_topography import Topography
 from rasterio.transform import xy
 from math import sqrt
-import VisualizationSystem as vs
+
 # --- CONFIGURACIÓN ---
 # 1. REEMPLAZA "TU_API_KEY_AQUI" con la clave que obtuviste de OpenTopography
 MI_API_KEY = "4ee8a32509d978c16a6c9615fde75ea1"
@@ -946,6 +946,10 @@ def visualizar_mapa_concurrencia(grid, visits):
     ax.set_ylabel("Y del Grid")
 
     plt.show()
+def imprimir_keys(grid):
+    for key in sorted(grid.keys(), key=lambda k: (k[1], k[0])):
+        x, y = key
+        print(f"ID: {key} | X: {x} | Y: {y}")
 
 def main():
     heights, transformacion=download_and_process_dem()
@@ -967,7 +971,8 @@ def main():
     #visualizar_grid(grid, mostrar_ids=True)
     print(grid)
     #visualizar_heights_grid_final(grid, heights, transformacion)
-    
+    #visualizar_grid(grid, mostrar_ids=True)
+    imprimir_keys(grid)
     
     
     

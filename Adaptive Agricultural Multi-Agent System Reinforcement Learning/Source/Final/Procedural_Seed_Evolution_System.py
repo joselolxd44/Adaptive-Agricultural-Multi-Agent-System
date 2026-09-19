@@ -4,13 +4,6 @@ from dataclasses import dataclass, field
 from typing import List
 
 
-@dataclass
-class Attribute:
-    attributeID: int
-    description: str
-    minValue: float = 0
-    maxValue: float = 0
-    value: float = 0
 
 
 @dataclass
@@ -19,13 +12,15 @@ class Variety:
     name: str
     minHeightZone: float
     maxHeightZone: float
-    attributes: List[Attribute] = field(default_factory=list)
+    weight_sup: int
+    weight_inf: int
     aggressiveness: float = 0
     baseRange: float = 0
     maxChildren: int = 1
     kcal_base: float = 0
     food_base_amount: int = 0
-
+    
+    
 
 @dataclass
 class HeightVarietyMetrics:
@@ -35,13 +30,12 @@ class HeightVarietyMetrics:
 @dataclass
 class Seed:
     originalHeight: float = 0
-    attributesShot: List[Attribute] = field(default_factory=list)
-
+    
     newHeight: float = 0
 
     mutability: float = 0
     heightTolerance: float = 0
-
+    
     influenceShot: float = 1
     chaos: float = 0
 
@@ -56,6 +50,7 @@ class Food:
     calories: float
     parentSeed: Seed
     amount: int = 0
+    weight: int = 0
     
     
 @dataclass
@@ -93,13 +88,6 @@ def setHeightMetrics(varieties: List[Variety]) -> HeightVarietyMetrics:
     return heightMetrics
     
 
-def setAttribute(id: int, description: str, minValue: float, maxValue: float) -> Attribute:
-    return Attribute(
-        attributeID=id,
-        description=description,
-        minValue=minValue,
-        maxValue=maxValue
-    )
 
 
 def setVariety(
@@ -107,22 +95,25 @@ def setVariety(
     description: str,
     minHeight: float,
     maxHeight: float,
-    attributes: List[Attribute],
     aggressiveness: float,
     maxChildren: int,
     kcal_base: float,
-    food_base_amount: float
+    food_base_amount: float,
+    w_sup: int,
+    w_inf: int
 ) -> Variety:
     return Variety(
         varietyID=id,
         name=description,
         minHeightZone=minHeight,
         maxHeightZone=maxHeight,
-        attributes=attributes,
         aggressiveness=aggressiveness,
         maxChildren=maxChildren,
+        kcal_base=kcal_base,
         food_base_amount=food_base_amount,
-        kcal_base=kcal_base
+        weight_sup=w_sup,
+        weight_inf=w_inf
+        
     )
 
 
@@ -228,21 +219,6 @@ def probabilitySelectionByInfluence(seed: Seed, influentialVarieties: List[Varie
     return value
 
 
-def generateAmountAttributesByLuck(playerLuck: float) -> int:
-    probabilities = [0.30, 0.50, 0.20]
-
-    probabilities[1] *= 1 + playerLuck
-    probabilities[2] *= 1 + playerLuck * 2
-    probabilities[0] = 1.0 - (probabilities[1] + probabilities[2])
-
-    randomValue = random.random()
-
-    if randomValue < probabilities[0]:
-        return 1
-    elif randomValue < probabilities[0] + probabilities[1]:
-        return 2
-    else:
-        return 3
 
 
 def getVarietyById(varietyID: int, heightVarieties: HeightVarietyMetrics) -> Variety:
@@ -253,30 +229,6 @@ def getVarietyById(varietyID: int, heightVarieties: HeightVarietyMetrics) -> Var
     raise ValueError(f"Variety with ID {varietyID} not found")
 
 
-def getAttributeFromVariety(variety: Variety, seed: Seed) -> Attribute:
-    index = random.randint(0, len(variety.attributes) - 1)
-
-    baseAttribute = variety.attributes[index]
-
-    attribute = Attribute(
-        attributeID=baseAttribute.attributeID,
-        description=baseAttribute.description,
-        minValue=baseAttribute.minValue,
-        maxValue=baseAttribute.maxValue,
-        value=baseAttribute.value
-    )
-
-    noise = -1.0 + random.random() * 2.0
-
-    middleValue = (attribute.maxValue - attribute.minValue) / 2
-
-    attribute.value = (
-        middleValue
-        + seed.influenceShot * (attribute.maxValue - middleValue)
-        + noise * seed.chaos * (2 * middleValue)
-    )
-
-    return attribute
 
 
 def setConceivedSeed(newSeed: Seed, seed: Seed, variety: Variety) -> None:
@@ -327,12 +279,6 @@ def printSeedDataLine(seed: Seed) -> None:
         seed.totalInfluenceWeight
     )
 
-    print("Attributes:")
-
-    for attribute in seed.attributesShot:
-        print(attribute.description, attribute.value)
-
-
 
 def printColumnsName() -> None:
     print(
@@ -358,42 +304,7 @@ def plantSeed(seed: Seed, newHeight: float) -> None:
     seed.range = seed.range * stabilization + expansion * seed.chaos * 0.25
 
 
-def attributeAlreadyGiven(seed: Seed, attribute: Attribute) -> bool:
-    for givenAttribute in seed.attributesShot:
-        if attribute.attributeID == givenAttribute.attributeID:
-            return True
 
-    return False
-
-
-def getAttributesByInfluence(
-    newSeed: Seed,
-    seed: Seed,
-    influentialVarieties: List[VarietyInfluence],
-    heightMetric: HeightVarietyMetrics
-) -> None:
-    cantAttributes = generateAmountAttributesByLuck(0)
-
-    i = 0
-
-    while i < cantAttributes:
-        varietyId = probabilitySelectionByInfluence(seed, influentialVarieties)
-
-        if varietyId != -1:
-            variety = getVarietyById(varietyId, heightMetric)
-
-            if len(variety.attributes) == 0:
-                continue
-
-            attribute = getAttributeFromVariety(variety, seed)
-
-            if attributeAlreadyGiven(newSeed, attribute):
-                i += 1
-                continue
-            else:
-                newSeed.attributesShot.append(attribute)
-
-        i += 1
 
 
 def mutateVarietyByInfluence(
@@ -417,11 +328,11 @@ def mutateVarietyByInfluence(
     else:
         return False
 
-def calculate_kcal_from_seed(seed):
+def calculate_kcal_weight_from_seed(seed: Seed):
     variety = seed.parentVariety
 
     kcal_base = variety.kcal_base
-
+    weight_base=(variety.weight_inf+variety.weight_sup)/2
     ideal_height = (
         variety.minHeightZone + variety.maxHeightZone
     ) / 2
@@ -442,14 +353,24 @@ def calculate_kcal_from_seed(seed):
 
     noise_factor = 1 + noise
 
+    weight = (
+        weight_base
+        * height_factor
+        * influence_factor
+        * noise_factor
+    )
+    avg_weight =min(weight,variety.weight_sup)
+    
+
     kcal_final = (
         kcal_base
         * height_factor
         * influence_factor
         * noise_factor
     )
+    
 
-    return max(0, kcal_final)
+    return max(0, kcal_final), max(variety.weight_inf,avg_weight)
 
 def calculate_food_amount_from_seed(seed):
     variety = seed.parentVariety
@@ -488,16 +409,17 @@ def calculate_food_amount_from_seed(seed):
 
 def getFoodFromSeed(seed: Seed) :
     foodName = seed.parentVariety.name
-    calories = calculate_kcal_from_seed(seed)
+    calories,weight = calculate_kcal_weight_from_seed(seed)
+    
     food_amount= calculate_food_amount_from_seed(seed)
-    for attribute in seed.attributesShot:
-        calories += attribute.value * 5
+    
 
     return Food(
         name=foodName,
-        calories=calories*food_amount,
+        calories=calories*weight*food_amount,
         amount=food_amount,
-        parentSeed=seed
+        parentSeed=seed,
+        weight=weight
     )
     
 def getCantChildren(seed: Seed) -> int:
@@ -551,12 +473,7 @@ def generateChildren(
     for child in range(cantChildren):
         newSeed = Seed()
 
-        getAttributesByInfluence(
-            newSeed,
-            seed,
-            influentialVarieties,
-            heightMetric
-        )
+        
 
         if mutateVarietyByInfluence(
             newSeed,
@@ -598,7 +515,7 @@ def writeSeedCSVHeader(writer) -> None:
         "mutability",
         "range",
         "totalInfluenceWeight",
-        "cantAttributes",
+        
         "totalSeeds",
         "totalCalories",
         "foodAmount",
@@ -616,7 +533,6 @@ def writeSeedCSVLine(writer, generation: int, seed: Seed, food: List[Food], seed
         seed.mutability,
         seed.range,
         seed.totalInfluenceWeight,
-        len(seed.attributesShot),
         len(seeds),
         sum(f.calories for f in food),
         sum(f.amount for f in food),
@@ -629,20 +545,24 @@ def generateRandomFood(amount):
         "Sani imilla",
         3830,
         3900,
-        [],
         0.3,
         20,
         77,
-        3
+        3,
+        80,
+        140
+        
     )
     food=[]
     seed1 = setPrimalSeed(20, var1Potato)
     for i in range(amount):
+        calories,weight=calculate_kcal_weight_from_seed(seed1)
         food.append(
             Food(
                 parentSeed=seed1,
                 name=seed1.parentVariety.name,
-                calories=calculate_kcal_from_seed(seed1),
+                calories=calories,
+                weight=weight,
                 amount=calculate_food_amount_from_seed(seed1)
             )
         )
@@ -654,35 +574,33 @@ def generateRandomSeeds(amount,original_height):
         "Sani imilla",
         3830,
         3900,
-        [],
         0.3,
         20,
         77,
-        5
+        5,
+        80,
+        140
     )
     seeds=[]
     for i in range(amount):
-        seeds.append(setPrimalSeed(20, var1Potato))
+        seeds.append(setPrimalSeed(original_height, var1Potato))
     return seeds
 
 def generateHeightMetrics():
     varieties = []
 
-    atri1 = setAttribute(1, "speed", 3, 20)
-    atri2 = setAttribute(2, "energy", 5, 30)
-    atri3 = setAttribute(3, "night vision", 5, 20)
-    atri4 = setAttribute(4, "force", 3, 20)
-
+    
     var1Potato = setVariety(
         1,
         "Sani imilla",
         3830,
         3900,
-        [atri1],
         0.3,
         20,
-        77,
-        5
+        0.90,
+        5,
+        80,
+        140
     )
 
     var2Potato = setVariety(
@@ -690,11 +608,13 @@ def generateHeightMetrics():
         "Imilla Negra",
         3850,
         3900,
-        [atri2],
         0.2,
         20,
-        77,
-        10
+        0.74,
+        10,
+        90,
+        160
+        
     
     )
 
@@ -703,11 +623,12 @@ def generateHeightMetrics():
         "Imilla Rosada",
         3830,
         3880,
-        [atri3],
         0.2,
         20,
-        77,
-        10
+        0.85,
+        10,
+        80,
+        130
     )
 
     var4Potato = setVariety(
@@ -715,11 +636,12 @@ def generateHeightMetrics():
         "Ocucuri morado",
         3230,
         4000,
-        [atri4],
         0.4,
         20,
-        77,
-        15
+        0.95,
+        15,
+        50,
+        90
     )
     
     var5Potato = setVariety(
@@ -727,11 +649,12 @@ def generateHeightMetrics():
         "Locka",
         3830,
         4200,
-        [atri4],
         0.5,
         20,
-        77,
-        15
+        0.85,
+        15,
+        40,
+        80
     )
 
     varieties.append(var1Potato)
@@ -748,21 +671,17 @@ def generateHeightMetrics():
 def behaviorSimulation():
     varieties = []
 
-    atri1 = setAttribute(1, "speed", 3, 20)
-    atri2 = setAttribute(2, "energy", 5, 30)
-    atri3 = setAttribute(3, "night vision", 5, 20)
-    atri4 = setAttribute(4, "force", 3, 20)
-
+    
     varDarkPotato = setVariety(
         1,
         "Dark Potato",
         10,
         50,
-        [atri1],
+        
         0.5,
         8,
         77,
-        5
+        5,
     )
 
     varYellowPotato = setVariety(
@@ -770,7 +689,7 @@ def behaviorSimulation():
         "Yellow Potato",
         45,
         60,
-        [atri2],
+        
         0.2,
         10,
         250,
@@ -783,7 +702,7 @@ def behaviorSimulation():
         "Red Potato",
         55,
         80,
-        [atri3],
+        
         0.4,
         4,
         120,
@@ -795,7 +714,7 @@ def behaviorSimulation():
         "White Potato",
         70,
         100,
-        [atri4],
+        
         0.2,
         7,
         200,

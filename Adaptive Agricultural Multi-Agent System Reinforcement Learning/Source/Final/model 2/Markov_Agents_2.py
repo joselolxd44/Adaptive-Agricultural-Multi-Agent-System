@@ -1,15 +1,25 @@
 import ast
 import random
 import csv
+import copy
+import math
+import sys
+
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, List
-import copy
-import Visualizer as visual
+
 import pandas as pd
+
+# Add Final/ to Python path
+sys.path.append(
+    str(Path(__file__).resolve().parent.parent)
+)
+
 import Procedural_Seed_Evolution_System as seed_system
-import math
 import DataMapLoad as map_loader
 
+import Visualizer_2 as visual
 CALORIES_PER_PERSON = 1000
 BETA= 0.6
 ALPHA=0.6
@@ -32,7 +42,7 @@ class Community:
     tension: float = 0.0
     memory: dict = field(default_factory=dict)
     id: str= ""
-    haman: bool = False
+    caravane: bool = False
     cant_children: int = 0
     
 def give_seed_to_community(taker: Community, giver: Community, cant_seeds):
@@ -65,7 +75,7 @@ def init_Community_prototype(grid):
     init_transitions(grid)
     qtable=init_Qtable(grid)
     food=seed_system.generateRandomFood(20)
-    com=Community(position=(13,23), population=10, calories=15000, seeds=seeds, Qtable=qtable, food=food)
+    com=Community(position=(43,32), population=10, calories=15000, seeds=seeds, Qtable=qtable, food=food)
     com.memory=init_memory()
     com.id="1"
     com.cant_children=0
@@ -121,7 +131,355 @@ def join_communities(parent1: Community, parent2: Community):
     new_community.memory = {**parent1.memory, **parent2.memory}
     
     return new_community
+
+def get_visible_cells(grid, position, radius=4):
+    """
+    Returns the cells visible from a given position.
+
+    Visibility is blocked when a higher cell is encountered
+    along the line of sight.
+    """
+
+    x0, y0 = position
+
+    if position not in grid:
+        return set()
+
+    origin_height = grid[position]["height"]
+
+    visible_cells = {position}
+
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+
+            if dx == 0 and dy == 0:
+                continue
+
+            # Ignore cells outside the square radius
+            distance = max(
+                abs(dx),
+                abs(dy)
+            )
+
+            if distance > radius:
+                continue
+
+            # Move from the community toward the target cell
+            for step in range(1, distance + 1):
+
+                x = round(
+                    x0 + dx * step / distance
+                )
+
+                y = round(
+                    y0 + dy * step / distance
+                )
+
+                key = (x, y)
+
+                if key not in grid:
+                    break
+
+                cell_height = grid[key]["height"]
+
+                visible_cells.add(key)
+
+                # Higher terrain blocks what is behind it
+                if cell_height > origin_height:
+                    break
+
+    return visible_cells
+
+def get_visible_communities(
+    community,
+    civilization,
+    grid,
+    radius=4
+):
+    """
+    Returns communities visible from the current
+    position of the community.
+    """
+
+    visible_cells = get_visible_cells(
+        grid,
+        community.position,
+        radius
+    )
+
+    visible_communities = []
+
+    for other in civilization.communities:
+
+        if other is community:
+            continue
+
+        if other.position in visible_cells:
+            visible_communities.append(other)
+
+    return visible_communities
+
+def init_interaction_zones():
+    """
+    Stores the accumulated importance of locations
+    where communities exchange information.
+    """
+    return {}
+
+def calculate_information_gain(com1, com2):
+    """
+    Estimates how much new agricultural knowledge
+    com1 can obtain from com2.
+    """
+
+    memory1 = com1.memory["varieties"]
+    memory2 = com2.memory["varieties"]
+
+    gain = 0.0
+
+    for variety_id, knowledge in memory2.items():
+
+        if variety_id not in memory1:
+            gain += 1.0
+            continue
+
+        own = memory1[variety_id]
+
+        if (
+            knowledge.get("best_efficiency", 0.0)
+            > own.get("best_efficiency", 0.0)
+        ):
+            gain += 0.5
+
+        if (
+            knowledge.get("best_calories_amount", 0.0)
+            > own.get("best_calories_amount", 0.0)
+        ):
+            gain += 0.5
+
+    return gain
+
+def exchange_qtables(com1, com2):
+    """
+    Exchanges Q-values between two communities.
+
+    Only states already present in both Q-tables are exchanged.
+    This avoids copying or processing the entire Q-table unnecessarily.
+    """
+
+    common_states = (
+        set(com1.Qtable.keys())
+        & set(com2.Qtable.keys())
+    )
+
+    for state in common_states:
+
+        common_actions = (
+            set(com1.Qtable[state].keys())
+            & set(com2.Qtable[state].keys())
+        )
+
+        for action in common_actions:
+
+            q1 = com1.Qtable[state][action]
+            q2 = com2.Qtable[state][action]
+
+            average = (q1 + q2) / 2.0
+
+            com1.Qtable[state][action] = average
+            com2.Qtable[state][action] = average
+            
+def exchange_variety_memory(com1, com2):
     
+    memory1 = com1.memory["varieties"]
+    memory2 = com2.memory["varieties"]
+
+    variety_ids = set(memory1) | set(memory2)
+
+    for variety_id in variety_ids:
+
+        if variety_id not in memory1:
+            memory1[variety_id] = copy.deepcopy(
+                memory2[variety_id]
+            )
+            continue
+
+        if variety_id not in memory2:
+            memory2[variety_id] = copy.deepcopy(
+                memory1[variety_id]
+            )
+            continue
+
+        v1 = memory1[variety_id]
+        v2 = memory2[variety_id]
+
+        best_efficiency = max(
+            v1.get("best_efficiency", 0.0),
+            v2.get("best_efficiency", 0.0)
+        )
+
+        best_calories = max(
+            v1.get("best_calories_amount", 0.0),
+            v2.get("best_calories_amount", 0.0)
+        )
+
+        uncertainty = min(
+            v1.get("incertitude", 1.0),
+            v2.get("incertitude", 1.0)
+        )
+
+        v1["best_efficiency"] = best_efficiency
+        v2["best_efficiency"] = best_efficiency
+
+        v1["best_calories_amount"] = best_calories
+        v2["best_calories_amount"] = best_calories
+
+        v1["incertitude"] = uncertainty
+        v2["incertitude"] = uncertainty
+        
+
+    
+def exchange_information(com1, com2):
+    """
+    Exchanges knowledge between two communities
+    and returns the information gain.
+    """
+
+    gain_1 = calculate_information_gain(
+        com1,
+        com2
+    )
+
+    gain_2 = calculate_information_gain(
+        com2,
+        com1
+    )
+
+    exchange_qtables(
+        com1,
+        com2
+    )
+
+    exchange_variety_memory(
+        com1,
+        com2
+    )
+
+    return gain_1 + gain_2
+
+def process_information_exchange(
+    community,
+    civilization,
+    grid,
+    interaction_zones,
+    processed_contacts,
+    radius=4
+):
+    """
+    Detects visible communities and performs one information
+    exchange per pair and simulation turn.
+    """
+
+    visible_communities = get_visible_communities(
+        community,
+        civilization,
+        grid,
+        radius
+    )
+
+    if not visible_communities:
+        return 0.0
+
+    other = random.choice(visible_communities)
+
+    # Create an order-independent pair identifier
+    pair = tuple(sorted([
+        community.id,
+        other.id
+    ]))
+
+    # Already exchanged information this turn
+    if pair in processed_contacts:
+        return 0.0
+
+    processed_contacts.add(pair)
+
+    # Exchange information
+    reward = exchange_information(
+        community,
+        other
+    )
+
+    # Register the communication location
+    register_interaction_zone(
+        interaction_zones,
+        community.position,
+        reward=1.0,
+        radius=0
+    )
+
+    print(
+        f"COMMUNICATION: "
+        f"{community.id} <-> {other.id} "
+        f"at {community.position}"
+    )
+
+    return reward
+
+def register_interaction_zone(
+    interaction_zones,
+    position,
+    reward=1.0,
+    radius=0
+):
+    """
+    Registers a communication event at a specific position.
+
+    radius=0 means only the exact communication cell is marked.
+    """
+
+    x0, y0 = position
+
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+
+            key = (x0 + dx, y0 + dy)
+
+            interaction_zones[key] = (
+                interaction_zones.get(key, 0.0)
+                + max(reward, 1.0)
+            )
+            
+def exchange_qtables(com1, com2):
+    """
+    Exchanges Q-values between two communities.
+
+    Only states already present in both Q-tables are exchanged.
+    This avoids copying or processing the entire Q-table unnecessarily.
+    """
+
+    common_states = (
+        set(com1.Qtable.keys())
+        & set(com2.Qtable.keys())
+    )
+
+    for state in common_states:
+
+        common_actions = (
+            set(com1.Qtable[state].keys())
+            & set(com2.Qtable[state].keys())
+        )
+
+        for action in common_actions:
+
+            q1 = com1.Qtable[state][action]
+            q2 = com2.Qtable[state][action]
+
+            average = (q1 + q2) / 2.0
+
+            com1.Qtable[state][action] = average
+            com2.Qtable[state][action] = average
+
 @dataclass
 class Civilization:
     communities: List[Community]
@@ -305,7 +663,7 @@ def choose_action(com: Community, states):
     actions=states[state]["actions"]
     
     
-    if com.haman:
+    if com.caravane:
         epsilon = 0.85  
         
         if com.calories > com.population * 8000:
@@ -593,16 +951,38 @@ def move(com,action,board):
     return 10, 10
     
 def updateQ(com,state,action,next_state:int,reward):
-    if next_state not in com.Qtable:
-        # Inicializar el estado si no existe
-        com.Qtable[next_state] = {}
-        print(f"Inicializando estado {next_state} en Q-table")
-    if len(com.Qtable[next_state])!=0:
-        max_future_value=max(com.Qtable[next_state].values())
-    else:
-        max_future_value=0.0
-    com.Qtable[state][action] = com.Qtable[state][action] + ALPHA * (reward + GAMMA * max_future_value - com.Qtable[state][action])
 
+    # Make sure the current state exists
+    if state not in com.Qtable:
+        com.Qtable[state] = {}
+
+    # Make sure the current action exists
+    if action not in com.Qtable[state]:
+        com.Qtable[state][action] = 0.0
+
+    # Make sure the next state exists
+    if next_state not in com.Qtable:
+        com.Qtable[next_state] = {}
+
+    # Get the best future value
+    if len(com.Qtable[next_state]) > 0:
+        max_future_value = max(
+            com.Qtable[next_state].values()
+        )
+    else:
+        max_future_value = 0.0
+
+    current_value = com.Qtable[state][action]
+
+    # Q-learning update
+    com.Qtable[state][action] = (
+        current_value
+        + ALPHA * (
+            reward
+            + GAMMA * max_future_value
+            - current_value
+        )
+    )
 
 def execute_action(com, action, heightMetrics, board,writer):
     new_pos=com.position
@@ -667,47 +1047,63 @@ def main():
         
         for j in range(100):
             visits = {}
+            interaction_zones = init_interaction_zones()
             n=0
             seed_system.writeSeedCSVHeader(writer)
             civilization.add_community(init_Community_prototype(states))
             print("Civilization revived")
-            for i in range(1000):
+            for i in range(2000):
                 current_actions={}
                 rewards=[]
+                processed_contacts = set()
                 for com in civilization.communities:
                     com.tension=get_tension(com)
                     action=choose_action(com,states)
+
+                    old_position = com.position
+
                     next_state,reward=execute_action(com, action,heightMetrics, states,writer)
-                    updateQ(com,com.position,action,next_state,reward)
-                    com.position=next_state
-                    visits[com.position] = visits.get(com.position, 0) + 1
                     
+                    
+                    
+                    com.position=next_state
+                    interaction_reward = process_information_exchange(
+                        com,
+                        civilization,
+                        states,
+                        interaction_zones,
+                        processed_contacts
+                    )
+                    visits[com.position] = visits.get(com.position, 0) + 1
+                    reward += interaction_reward
+                    updateQ(com,old_position,action,next_state,reward)
                     current_actions[com.id] = {
                         "action": action,
                         "reward": reward
                     }
                     rewards.append(reward)
                     
-                    if i % 10 == 0:
+                    if i % 10 == 0 and i > 1900:
                         visualizer.draw(
                             civilization,
                             i,
-                            visits,
-                            rewards,
-                            current_actions
+                            visits=visits,
+                            rewards=rewards,
+                            current_actions=current_actions
                         )
-                        
+
+                    
                     com.population= min(com.population,com.population+round((com.calories- com.population*1000)/1000))
                     if(com.population<=0):
                         print("Community has die")
-                        if i > 995:
+                        if i > 1995:
                             map_loader.visualizar_mapa_concurrencia(states, visits)
                         
                         # 1. Eliminarla de la lista de la civilización
                         civilization.kill_community(com)
                         
                         # 2. VACIAR SUS ESTRUCTURAS INTERNAS (Esto libera la RAM de golpe)
-                        if j<=490:
+                        if j<=1990:
                             com.seeds.clear()
                             com.food.clear()
                             com.Qtable.clear()
@@ -730,7 +1126,7 @@ def main():
                         increase+=round(min(random.randint(1,com.population*2),round((com.calories-com.population*3000)/1000)))
                         com.population+=increase
                         com.calories-=increase*3000
-                        if com.calories>100000 and len(com.food)>200 and com.population>1000 and civilization.cantCommunities<6:
+                        if com.calories>100000 and len(com.food)>200 and com.population>1000 and civilization.cantCommunities<20:
                             son=init_Community_from_parent(states,com)
                             civilization.add_community(son)
                             print("Community has been split")
@@ -756,7 +1152,7 @@ def main():
                         "| Reward:", round(reward, 2),   
                     )
                     n=i
-            if n>995:
+            if n>1995:
                 map_loader.visualizar_mapa_concurrencia(states,visits)
                 break
             
@@ -764,8 +1160,6 @@ def main():
         print_Qvalues(com)
         
         map_loader.visualizar_mapa_concurrencia(states,visits)
-        
-    
     
     
 
