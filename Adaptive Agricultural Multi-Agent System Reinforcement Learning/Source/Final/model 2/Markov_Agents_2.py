@@ -1,4 +1,5 @@
 import ast
+import gc
 import random
 import csv
 import copy
@@ -671,7 +672,7 @@ def choose_action(com: Community, states):
     else:
         epsilon = max(0.1, tension)
 
-    if random.random() < epsilon:
+    if random.random() > epsilon:
         accion_aleatoria = random.choice(list(actions.items()))
         return accion_aleatoria[0]
     action_key = get_best_QValue(com, state)
@@ -994,6 +995,56 @@ def execute_action(com, action, heightMetrics, board,writer):
     
     return new_pos, reward
 
+
+
+
+def community_maintenance(com: Community):
+    com.calories-=com.population*1000*(2-com.tension*2)
+    com.calories=max(1,com.calories)
+    com.tension=get_tension(com)
+
+def community_increment(com):
+    increase=0
+    if (com.tension<0.75 and com.calories>3000+com.population*5000)or com.calories>com.population*10000 :
+        increase+=round(min(random.randint(1,com.population*2),round((com.calories-com.population*3000)/1000)))
+        com.population+=increase
+        com.calories-=increase*3000
+
+def can_reproduce(com: Community, civ: Civilization):
+    if com.calories>100000 and len(com.food)>200 and com.population>1000 and civ.cantCommunities<6: return True
+    return False
+    
+def community_reproduction(com: Community, civ: Civilization):
+    
+    if(can_reproduce(com, civ)):
+        son=init_Community_from_parent(states,com)
+        civ.add_community(son)
+        print("Community has been split")
+        return True
+    
+
+def food_storage(com: Community):
+    if com.calories>500000 :
+        com.calories=random.randrange(400000,500000)
+        
+    if  len(com.food)>200:
+        com.food=com.food[0:random.randint(30,200)]
+        com.seeds= com.seeds[0:random.randint(30,200)]
+        
+    com_weight_limit= com.population*20000
+    
+    food_weight=0
+    for f in com.food:
+        if( (food_weight+f.weight)>com_weight_limit):
+            del com.food[com.food.index(f):]
+            gc.collect()
+            break
+        food_weight+=f.weight
+        
+    
+                            
+    
+
 def print_varieties_memory(com):
     print("\n========== VARIETY MEMORY ==========\n")
 
@@ -1029,11 +1080,9 @@ def print_memory(com):
 
 def main():
     
-    
+   
     states=map_loader.generate_grid()
-    
     visualizer = visual.SimulationVisualizer(states)
-    
     civilization=Civilization()
     heightMetrics=seed_system.generateHeightMetrics()
     
@@ -1046,97 +1095,77 @@ def main():
         flag=True
         
         for j in range(100):
-            visits = {}
             interaction_zones = init_interaction_zones()
+            visits = {}
             n=0
             seed_system.writeSeedCSVHeader(writer)
+            
             civilization.add_community(init_Community_prototype(states))
             print("Civilization revived")
-            for i in range(2000):
+            for i in range(1000):
                 current_actions={}
                 rewards=[]
                 processed_contacts = set()
                 for com in civilization.communities:
+                    
                     com.tension=get_tension(com)
                     action=choose_action(com,states)
-
-                    old_position = com.position
-
                     next_state,reward=execute_action(com, action,heightMetrics, states,writer)
-                    
-                    
-                    
+                    updateQ(com,com.position,action,next_state,reward)
                     com.position=next_state
                     interaction_reward = process_information_exchange(
-                        com,
-                        civilization,
-                        states,
-                        interaction_zones,
-                        processed_contacts
-                    )
+                                            com,
+                                            civilization,
+                                            states,
+                                            interaction_zones,
+                                            processed_contacts
+                                        )
                     visits[com.position] = visits.get(com.position, 0) + 1
-                    reward += interaction_reward
-                    updateQ(com,old_position,action,next_state,reward)
+                    
                     current_actions[com.id] = {
                         "action": action,
                         "reward": reward
                     }
+                    
                     rewards.append(reward)
                     
-                    if i % 10 == 0 and i > 1900:
+                    #for each 10 iterations the visualzier changesS
+                    if i % 10 == 0:
                         visualizer.draw(
                             civilization,
                             i,
-                            visits=visits,
-                            rewards=rewards,
-                            current_actions=current_actions
+                            visits,
+                            rewards,
+                            current_actions
                         )
-
                     
+                    #We check if the community can supply for all the population, otherwise they die
                     com.population= min(com.population,com.population+round((com.calories- com.population*1000)/1000))
                     if(com.population<=0):
                         print("Community has die")
-                        if i > 1995:
+                        if i > 995:
                             map_loader.visualizar_mapa_concurrencia(states, visits)
-                        
-                        # 1. Eliminarla de la lista de la civilización
+                    
                         civilization.kill_community(com)
-                        
-                        # 2. VACIAR SUS ESTRUCTURAS INTERNAS (Esto libera la RAM de golpe)
-                        if j<=1990:
+                        #Free memory
+                        if j<=490:
                             com.seeds.clear()
                             com.food.clear()
                             com.Qtable.clear()
                             com.memory.clear()
-                            
-                            # 3. Eliminar la referencia local del bucle
                             del com 
-                        
-                        # 4. Romper el ciclo de este agente para pasar al siguiente vivo
+
                         break 
                         
                         
-                        
+                    community_maintenance(com)
+                    community_increment(com)
+                    community_reproduction(com, civilization)
                     
-                    com.calories-=com.population*1000*(2-com.tension*2)
-                    com.calories=max(1,com.calories)
-                    com.tension=get_tension(com)
-                    increase=0
-                    if (com.tension<0.75 and com.calories>3000+com.population*5000)or com.calories>com.population*10000 :
-                        increase+=round(min(random.randint(1,com.population*2),round((com.calories-com.population*3000)/1000)))
-                        com.population+=increase
-                        com.calories-=increase*3000
-                        if com.calories>100000 and len(com.food)>200 and com.population>1000 and civilization.cantCommunities<20:
-                            son=init_Community_from_parent(states,com)
-                            civilization.add_community(son)
-                            print("Community has been split")
+                    food_storage(com)
                     
-                    if com.calories>500000 :
-                        com.calories=random.randrange(400000,500000)
-                        
-                    if  len(com.food)>200:
-                        com.food=com.food[0:random.randint(30,200)]
-                        com.seeds= com.seeds[0:random.randint(30,200)]
+                    
+                    
                     
                     
                 
@@ -1152,7 +1181,7 @@ def main():
                         "| Reward:", round(reward, 2),   
                     )
                     n=i
-            if n>1995:
+            if n>995:
                 map_loader.visualizar_mapa_concurrencia(states,visits)
                 break
             
@@ -1160,6 +1189,8 @@ def main():
         print_Qvalues(com)
         
         map_loader.visualizar_mapa_concurrencia(states,visits)
+        
+    
     
     
 
@@ -1167,3 +1198,5 @@ if __name__ == "__main__":
     main()
     
     
+
+

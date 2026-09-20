@@ -19,7 +19,7 @@ sys.path.append(
 
 import Procedural_Seed_Evolution_System as seed_system
 import DataMapLoad as map_loader
-
+import markov
 import Visualizer as visual
 
 CALORIES_PER_PERSON = 2000
@@ -226,33 +226,13 @@ def get_tension(com):
     tension = 1 / (1 + math.exp(3 * (reserve_days - 1.5)))
 
     return max(0.01, min(tension, 0.99))
+
 def get_best_QValue(com, state):
     value= max(com.Qtable[state],key=com.Qtable[state].get)
     if value==0:
         return (0,0)
     return value
 
-# def get_best_QValue(com, state):
-   
-#     best_index = 0
-#     best_value = float('-inf')
-    
-#     for i, action in enumerate(com.Qtable[state].keys()):
-#         q_value = com.Qtable[state][action]
-#         if q_value > best_value:
-#             best_value = q_value
-#             best_index = i
-    
-#     return best_index  
-
-
-# def choose_action(com, actions, states):
-#     tension=get_tension(com)
-#     state=com.position
-#     if random.random() > tension:  
-#         return random.choice(actions)
-#     else:
-#         return get_best_QValue(com, state)
 
 def choose_action(com: Community, states):
     tension = get_tension(com)
@@ -268,7 +248,7 @@ def choose_action(com: Community, states):
     else:
         epsilon = max(0.1, tension)
 
-    if random.random() < epsilon:
+    if random.random() > epsilon:
         accion_aleatoria = random.choice(list(actions.items()))
         return accion_aleatoria[0]
     action_key = get_best_QValue(com, state)
@@ -351,15 +331,13 @@ def get_reward(com, height, food, varietyID):
         seeds_used = 1
 
     efficiency = total_calories / seeds_used
-    
-    
+
     variety_memory = get_variety_memory(com, varietyID)
 
     best_efficiency = variety_memory.get("best_efficiency", 0.0)
-    
-    if efficiency>best_efficiency:
-        variety_memory["best_efficiency"]=efficiency
 
+    if efficiency > best_efficiency:
+        variety_memory["best_efficiency"] = efficiency
 
     if best_efficiency <= 0:
         relative_efficiency = 1.0
@@ -373,7 +351,8 @@ def get_reward(com, height, food, varietyID):
     else:
         height_distance = abs(height - variety_memory["best_height"])
         tolerance = max(variety_memory.get("tolerance", 20.0), 1.0)
-        height_penalty = height_distance / tolerance
+
+        height_penalty = min(height_distance / tolerance, 1.0)
 
     uncertainty = 1 / math.sqrt(seeds_used + 1)
 
@@ -384,6 +363,9 @@ def get_reward(com, height, food, varietyID):
     )
 
     return reward
+
+
+
 def get_alternative_reward(com,height,food,varietyID):
     pertinent_food=get_food_by_variety(com.food,varietyID)
     pertinent_food=get_food_by_height(com.food,height)
@@ -565,7 +547,8 @@ def execute_action(com, action, heightMetrics, board,writer):
         reward = cultivate(com, board, heightMetrics,writer)
     else:
         new_pos,reward = step(com.position, action,board)
-        reward=(reward*com.population)
+        
+        reward = max(-1.0, min(0.0, reward / 10.0))
     
     return new_pos, reward
 
