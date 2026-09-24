@@ -972,7 +972,7 @@ def main():
     print(grid)
     #visualizar_heights_grid_final(grid, heights, transformacion)
     #visualizar_grid(grid, mostrar_ids=True)
-    imprimir_keys(grid)
+    #imprimir_keys(grid)
     
     
     

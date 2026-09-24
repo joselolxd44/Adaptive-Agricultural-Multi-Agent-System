@@ -464,13 +464,16 @@ def getCantChildren(seed: Seed) -> int:
 def generateChildren(
     seed: Seed,
     influentialVarieties: List[VarietyInfluence],
-    heightMetric: HeightVarietyMetrics
+    heightMetric: HeightVarietyMetrics,
+    max_amount: int
 ):
     cantChildren = getCantChildren(seed)
 
     children = []
     food=[]
     for child in range(cantChildren):
+        if(len(children)>max_amount): 
+            break
         newSeed = Seed()
 
         
@@ -490,7 +493,8 @@ def generateChildren(
 def seedReproduction(
     heightMetric: HeightVarietyMetrics,
     seed: Seed,
-    newHeight: float
+    newHeight: float,
+    max_amount: int
 ):
     plantSeed(seed, newHeight)
 
@@ -499,7 +503,8 @@ def seedReproduction(
     children, food = generateChildren(
         seed,
         influentialVarieties,
-        heightMetric
+        heightMetric,
+        max_amount
     )
 
     return children, food
@@ -593,8 +598,8 @@ def generateHeightMetrics():
     var1Potato = setVariety(
         1,
         "Sani imilla",
-        3830,
-        3900,
+        3630,
+        3730,
         0.3,
         20,
         0.90,
@@ -634,8 +639,8 @@ def generateHeightMetrics():
     var4Potato = setVariety(
         4,
         "Ocucuri morado",
-        3230,
-        4000,
+        4030,
+        4100,
         0.4,
         20,
         0.95,
@@ -647,8 +652,8 @@ def generateHeightMetrics():
     var5Potato = setVariety(
         5,
         "Locka",
-        3830,
-        4200,
+        4230,
+        4300,
         0.5,
         20,
         0.85,

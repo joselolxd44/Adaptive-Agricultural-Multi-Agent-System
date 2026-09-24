@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import numpy as np
 
 
@@ -14,21 +15,21 @@ class SimulationVisualizer:
 
         plt.ion()
 
-        self.fig = plt.figure(figsize=(14, 9))
+        self.fig = plt.figure(figsize=(15, 9))
 
         # Mapa
         self.ax = self.fig.add_axes(
-            [0.05, 0.30, 0.65, 0.63]
+            [0.04, 0.30, 0.66, 0.63]
         )
 
         # Gráfica de rewards
         self.reward_ax = self.fig.add_axes(
-            [0.05, 0.06, 0.65, 0.18]
+            [0.04, 0.06, 0.66, 0.18]
         )
 
         # Panel de información
         self.info_ax = self.fig.add_axes(
-            [0.73, 0.08, 0.25, 0.85]
+            [0.73, 0.05, 0.25, 0.88]
         )
 
         self.info_ax.axis("off")
@@ -38,9 +39,56 @@ class SimulationVisualizer:
             1,
             "",
             verticalalignment="top",
-            fontsize=10,
+            fontsize=9,
             family="monospace"
         )
+
+        # --------------------------------------------------------
+        # COLORES DE COLONIAS
+        # --------------------------------------------------------
+
+        self.colony_colors = {}
+
+        self.color_palette = [
+            "red",
+            "blue",
+            "green",
+            "purple",
+            "orange",
+            "cyan",
+            "magenta",
+            "yellow",
+            "brown",
+            "pink",
+            "lime",
+            "navy",
+            "gold",
+            "teal",
+            "coral",
+            "indigo",
+            "olive",
+            "maroon",
+            "turquoise",
+            "violet"
+        ]
+
+    # ============================================================
+    # COLOR DE COLONIA
+    # ============================================================
+
+    def get_colony_color(self, colony_id):
+
+        if colony_id not in self.colony_colors:
+
+            index = len(self.colony_colors)
+
+            self.colony_colors[colony_id] = (
+                self.color_palette[
+                    index % len(self.color_palette)
+                ]
+            )
+
+        return self.colony_colors[colony_id]
 
     # ============================================================
     # DRAW
@@ -52,7 +100,8 @@ class SimulationVisualizer:
         turn,
         visits=None,
         rewards=None,
-        current_actions=None
+        current_actions=None,
+        colonies=None
     ):
 
         # --------------------------------------------------------
@@ -61,7 +110,10 @@ class SimulationVisualizer:
 
         self.ax.clear()
 
-        # Obtener límites reales de la grid
+        # --------------------------------------------------------
+        # 2. OBTENER LÍMITES
+        # --------------------------------------------------------
+
         xs = [x for x, y in self.states.keys()]
         ys = [y for x, y in self.states.keys()]
 
@@ -75,7 +127,7 @@ class SimulationVisualizer:
         height = max_y - min_y + 1
 
         # --------------------------------------------------------
-        # 2. CREAR MAPA DEL TERRENO
+        # 3. TERRENO
         # --------------------------------------------------------
 
         terrain = np.full(
@@ -94,11 +146,12 @@ class SimulationVisualizer:
             terrain,
             cmap="terrain",
             origin="upper",
-            interpolation="nearest"
+            interpolation="nearest",
+            zorder=0
         )
 
         # --------------------------------------------------------
-        # 3. MAPA DE VISITAS
+        # 4. MAPA DE VISITAS
         # --------------------------------------------------------
 
         if visits is not None:
@@ -109,8 +162,6 @@ class SimulationVisualizer:
 
             for (x, y), count in visits.items():
 
-                # Ignorar posiciones que no existen
-                # en la grid
                 if (x, y) not in self.states:
                     continue
 
@@ -122,19 +173,156 @@ class SimulationVisualizer:
             self.ax.imshow(
                 visit_map,
                 cmap="Blues",
-                alpha=0.30,
+                alpha=0.18,
                 origin="upper",
-                interpolation="nearest"
+                interpolation="nearest",
+                zorder=1
             )
 
         # --------------------------------------------------------
-        # 4. DIBUJAR COMUNIDADES
+        # 5. TERRITORIOS DE COLONIAS
         # --------------------------------------------------------
+
+        if colonies is not None:
+
+            for colony in colonies:
+
+                colony_id = colony.id
+
+                base_color = self.get_colony_color(
+                    colony_id
+                )
+
+                # ------------------------------------------------
+                # TERRITORIO
+                # ------------------------------------------------
+
+                territory_map = np.full(
+                    (height, width),
+                    np.nan
+                )
+
+                for position in colony.states:
+
+                    if position not in self.states:
+                        continue
+
+                    x, y = position
+
+                    row = y - min_y
+                    col = x - min_x
+
+                    territory_map[row, col] = 1
+
+                self.ax.imshow(
+                    territory_map,
+                    cmap=mcolors.ListedColormap(
+                        [base_color]
+                    ),
+                    alpha=0.22,
+                    origin="upper",
+                    interpolation="nearest",
+                    zorder=2
+                )
+
+                # ------------------------------------------------
+                # FRONTERA DE LA COLONIA
+                # ------------------------------------------------
+
+                boundary_x = []
+                boundary_y = []
+
+                colony_states = set(
+                    colony.states.keys()
+                )
+
+                for position in colony_states:
+
+                    x, y = position
+
+                    neighbours = [
+                        (x + 1, y),
+                        (x - 1, y),
+                        (x, y + 1),
+                        (x, y - 1)
+                    ]
+
+                    # Si toca una celda fuera del territorio,
+                    # forma parte de la frontera.
+                    if any(
+                        neighbour not in colony_states
+                        for neighbour in neighbours
+                    ):
+
+                        col = x - min_x
+                        row = y - min_y
+
+                        boundary_x.append(col)
+                        boundary_y.append(row)
+
+                if boundary_x:
+
+                    self.ax.scatter(
+                        boundary_x,
+                        boundary_y,
+                        s=10,
+                        facecolors="none",
+                        edgecolors=base_color,
+                        linewidths=0.8,
+                        alpha=0.8,
+                        zorder=4
+                    )
+
+                # ------------------------------------------------
+                # CENTRO DE COLONIA
+                # ------------------------------------------------
+
+                cx, cy = colony.central_point
+
+                center_col = cx - min_x
+                center_row = cy - min_y
+
+                self.ax.scatter(
+                    center_col,
+                    center_row,
+                    s=150,
+                    marker="*",
+                    facecolors=base_color,
+                    edgecolors="black",
+                    linewidths=1.5,
+                    zorder=8
+                )
+
+                self.ax.text(
+                    center_col,
+                    center_row - 0.7,
+                    f"C{colony_id}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                    fontweight="bold",
+                    color="black",
+                    zorder=9
+                )
+
+        # --------------------------------------------------------
+        # 6. COMUNIDADES
+        # --------------------------------------------------------
+
+        # Primero mostramos comunidades normales.
+        # Los miembros de colonias reciben el color de su colonia.
+
+        colony_members = {}
+
+        if colonies is not None:
+
+            for colony in colonies:
+
+                colony_members[id(colony.haman)] = colony
+                colony_members[id(colony.hurin)] = colony
 
         for com in civilization.communities:
 
-            # La comunidad puede estar en una posición
-            # que ya no sea válida
             if com.position not in self.states:
                 continue
 
@@ -143,22 +331,34 @@ class SimulationVisualizer:
             row = y - min_y
             col = x - min_x
 
-            # Tamaño según población
             size = 40 + min(
                 com.population,
                 500
             ) * 0.4
 
+            # Comunidad normal
+            face_color = "white"
+
+            # Si pertenece a una colonia,
+            # utiliza el color de la colonia.
+            colony = colony_members.get(id(com))
+
+            if colony is not None:
+
+                face_color = self.get_colony_color(
+                    colony.id
+                )
+
             self.ax.scatter(
                 col,
                 row,
                 s=size,
+                facecolors=face_color,
                 edgecolors="black",
                 linewidths=1.5,
                 zorder=10
             )
 
-            # ID de la comunidad
             self.ax.text(
                 col,
                 row,
@@ -167,15 +367,103 @@ class SimulationVisualizer:
                 va="center",
                 fontsize=8,
                 fontweight="bold",
+                color="black",
                 zorder=11
             )
 
         # --------------------------------------------------------
-        # 5. CONFIGURACIÓN DEL MAPA
+        # 7. DIBUJAR HANAN Y HURIN
+        # --------------------------------------------------------
+
+        if colonies is not None:
+
+            for colony in colonies:
+
+                base_color = self.get_colony_color(
+                    colony.id
+                )
+
+                # Hanan
+                haman = colony.haman
+
+                if haman.position in self.states:
+
+                    x, y = haman.position
+
+                    row = y - min_y
+                    col = x - min_x
+
+                    size = 80 + min(
+                        haman.population,
+                        500
+                    ) * 0.35
+
+                    self.ax.scatter(
+                        col,
+                        row,
+                        s=size,
+                        marker="^",
+                        facecolors=base_color,
+                        edgecolors="black",
+                        linewidths=2,
+                        zorder=12
+                    )
+
+                    self.ax.text(
+                        col,
+                        row,
+                        "H",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        fontweight="bold",
+                        zorder=13
+                    )
+
+                # Hurin
+                hurin = colony.hurin
+
+                if hurin.position in self.states:
+
+                    x, y = hurin.position
+
+                    row = y - min_y
+                    col = x - min_x
+
+                    size = 80 + min(
+                        hurin.population,
+                        500
+                    ) * 0.35
+
+                    self.ax.scatter(
+                        col,
+                        row,
+                        s=size,
+                        marker="o",
+                        facecolors=base_color,
+                        edgecolors="black",
+                        linewidths=2,
+                        zorder=12
+                    )
+
+                    self.ax.text(
+                        col,
+                        row,
+                        "R",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        fontweight="bold",
+                        zorder=13
+                    )
+
+        # --------------------------------------------------------
+        # 8. CONFIGURACIÓN DEL MAPA
         # --------------------------------------------------------
 
         self.ax.set_title(
-            f"Andean Agricultural Simulation — Turn {turn}"
+            f"Andean Agricultural Simulation — "
+            f"Model 3 — Turn {turn}"
         )
 
         self.ax.set_xlabel("X")
@@ -194,46 +482,143 @@ class SimulationVisualizer:
         self.ax.set_aspect("equal")
 
         # --------------------------------------------------------
-        # 6. INFORMACIÓN DE LAS COMUNIDADES
+        # 9. PANEL DE INFORMACIÓN
         # --------------------------------------------------------
 
         info = ""
 
-        info += f"TURN {turn}\n"
-        info += "=" * 30
+        info += f"MODEL 3 — TURN {turn}\n"
+        info += "=" * 32
         info += "\n\n"
+
+        # --------------------------------------------------------
+        # COMUNIDADES NORMALES
+        # --------------------------------------------------------
+
+        normal_count = 0
+
+        if civilization.communities:
+
+            for com in civilization.communities:
+
+                if id(com) in colony_members:
+                    continue
+
+                normal_count += 1
+
+        info += (
+            f"COMMUNITIES : {normal_count}\n"
+        )
+
+        info += (
+            f"COLONIES    : "
+            f"{len(colonies) if colonies is not None else 0}\n"
+        )
+
+        info += "\n"
+
+        # --------------------------------------------------------
+        # INFORMACIÓN DE COLONIAS
+        # --------------------------------------------------------
+
+        if colonies is not None:
+
+            for colony in colonies:
+
+                color = self.get_colony_color(
+                    colony.id
+                )
+
+                info += (
+                    f"COLONY {colony.id}\n"
+                )
+
+                info += "-" * 28
+                info += "\n"
+
+                info += (
+                    f"Center    : "
+                    f"{colony.central_point}\n"
+                )
+
+                info += (
+                    f"Territory : "
+                    f"{len(colony.states)} cells\n"
+                )
+
+                info += (
+                    f"Radius    : "
+                    f"{getattr(colony, 'radius', '?')}\n"
+                )
+
+                info += (
+                    f"Hanan     : "
+                    f"{colony.haman.position}\n"
+                )
+
+                info += (
+                    f"Hurin     : "
+                    f"{colony.hurin.position}\n"
+                )
+
+                info += (
+                    f"H population: "
+                    f"{colony.haman.population}\n"
+                )
+
+                info += (
+                    f"R population: "
+                    f"{colony.hurin.population}\n"
+                )
+
+                info += "\n"
+
+        # --------------------------------------------------------
+        # COMUNIDADES NORMALES DETALLADAS
+        # --------------------------------------------------------
 
         for com in civilization.communities:
 
-            info += f"COMMUNITY {com.id}\n"
-            info += "-" * 25
+            if id(com) in colony_members:
+                continue
+
+            info += (
+                f"COMMUNITY {com.id}\n"
+            )
+
+            info += "-" * 28
             info += "\n"
 
             info += (
-                f"Position  : {com.position}\n"
+                f"Position  : "
+                f"{com.position}\n"
             )
 
             info += (
-                f"Population: {com.population}\n"
+                f"Population: "
+                f"{com.population}\n"
             )
 
             info += (
-                f"Calories  : {com.calories:.0f}\n"
+                f"Calories  : "
+                f"{com.calories:.0f}\n"
             )
 
             info += (
-                f"Tension   : {com.tension:.2f}\n"
+                f"Tension   : "
+                f"{com.tension:.2f}\n"
             )
 
             info += (
-                f"Seeds     : {len(com.seeds)}\n"
+                f"Seeds     : "
+                f"{len(com.seeds)}\n"
             )
 
             info += (
-                f"Food      : {len(com.food)}\n"
+                f"Food      : "
+                f"{len(com.food)}\n"
             )
 
-            # Información de la acción actual
             if (
                 current_actions is not None
                 and com.id in current_actions
@@ -256,23 +641,18 @@ class SimulationVisualizer:
         self.info_text.set_text(info)
 
         # --------------------------------------------------------
-        # 7. GRÁFICA DE REWARDS
+        # 10. REWARDS
         # --------------------------------------------------------
 
         self.reward_ax.clear()
 
         if rewards is not None and len(rewards) > 0:
 
-            # Reward individual
             self.reward_ax.plot(
                 rewards,
                 alpha=0.25,
                 linewidth=0.8
             )
-
-            # ----------------------------------------------------
-            # PROMEDIO MÓVIL
-            # ----------------------------------------------------
 
             window = 50
 
@@ -310,7 +690,7 @@ class SimulationVisualizer:
         )
 
         # --------------------------------------------------------
-        # 8. ACTUALIZAR FIGURA
+        # 11. ACTUALIZAR
         # --------------------------------------------------------
 
         self.fig.canvas.draw()
