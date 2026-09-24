@@ -1,0 +1,7 @@
+{
+    "python.analysis.extraPaths": [
+        "./Adaptive Agricultural Multi-Agent System Reinforcement Learning/__pycache__",
+        "./Adaptive Agricultural Multi-Agent System Reinforcement Learning/__pycache__"
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:system"
+}
