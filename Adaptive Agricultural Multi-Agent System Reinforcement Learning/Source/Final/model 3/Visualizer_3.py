@@ -9,10 +9,6 @@ class SimulationVisualizer:
 
         self.states = states
 
-        # --------------------------------------------------------
-        # CONFIGURACIÓN DE LA FIGURA
-        # --------------------------------------------------------
-
         plt.ion()
 
         self.fig = plt.figure(figsize=(15, 9))
@@ -43,10 +39,6 @@ class SimulationVisualizer:
             family="monospace"
         )
 
-        # --------------------------------------------------------
-        # COLORES DE COLONIAS
-        # --------------------------------------------------------
-
         self.colony_colors = {}
 
         self.color_palette = [
@@ -72,10 +64,6 @@ class SimulationVisualizer:
             "violet"
         ]
 
-    # ============================================================
-    # COLOR DE COLONIA
-    # ============================================================
-
     def get_colony_color(self, colony_id):
 
         if colony_id not in self.colony_colors:
@@ -90,9 +78,6 @@ class SimulationVisualizer:
 
         return self.colony_colors[colony_id]
 
-    # ============================================================
-    # DRAW
-    # ============================================================
 
     def draw(
         self,
@@ -104,15 +89,7 @@ class SimulationVisualizer:
         colonies=None
     ):
 
-        # --------------------------------------------------------
-        # 1. LIMPIAR MAPA
-        # --------------------------------------------------------
-
         self.ax.clear()
-
-        # --------------------------------------------------------
-        # 2. OBTENER LÍMITES
-        # --------------------------------------------------------
 
         xs = [x for x, y in self.states.keys()]
         ys = [y for x, y in self.states.keys()]
@@ -125,10 +102,6 @@ class SimulationVisualizer:
 
         width = max_x - min_x + 1
         height = max_y - min_y + 1
-
-        # --------------------------------------------------------
-        # 3. TERRENO
-        # --------------------------------------------------------
 
         terrain = np.full(
             (height, width),
@@ -149,10 +122,6 @@ class SimulationVisualizer:
             interpolation="nearest",
             zorder=0
         )
-
-        # --------------------------------------------------------
-        # 4. MAPA DE VISITAS
-        # --------------------------------------------------------
 
         if visits is not None:
 
@@ -179,10 +148,6 @@ class SimulationVisualizer:
                 zorder=1
             )
 
-        # --------------------------------------------------------
-        # 5. TERRITORIOS DE COLONIAS
-        # --------------------------------------------------------
-
         if colonies is not None:
 
             for colony in colonies:
@@ -192,10 +157,6 @@ class SimulationVisualizer:
                 base_color = self.get_colony_color(
                     colony_id
                 )
-
-                # ------------------------------------------------
-                # TERRITORIO
-                # ------------------------------------------------
 
                 territory_map = np.full(
                     (height, width),
@@ -225,10 +186,6 @@ class SimulationVisualizer:
                     zorder=2
                 )
 
-                # ------------------------------------------------
-                # FRONTERA DE LA COLONIA
-                # ------------------------------------------------
-
                 boundary_x = []
                 boundary_y = []
 
@@ -247,8 +204,7 @@ class SimulationVisualizer:
                         (x, y - 1)
                     ]
 
-                    # Si toca una celda fuera del territorio,
-                    # forma parte de la frontera.
+                    # if it touches an space out of the territory it marks it as a frontier
                     if any(
                         neighbour not in colony_states
                         for neighbour in neighbours
@@ -273,10 +229,7 @@ class SimulationVisualizer:
                         zorder=4
                     )
 
-                # ------------------------------------------------
-                # CENTRO DE COLONIA
-                # ------------------------------------------------
-
+                # Colony center
                 cx, cy = colony.central_point
 
                 center_col = cx - min_x
@@ -304,13 +257,7 @@ class SimulationVisualizer:
                     color="black",
                     zorder=9
                 )
-
-        # --------------------------------------------------------
-        # 6. COMUNIDADES
-        # --------------------------------------------------------
-
-        # Primero mostramos comunidades normales.
-        # Los miembros de colonias reciben el color de su colonia.
+        #We show firstly the comunities
 
         colony_members = {}
 
@@ -336,11 +283,10 @@ class SimulationVisualizer:
                 500
             ) * 0.4
 
-            # Comunidad normal
+            # regular comunity
             face_color = "white"
 
-            # Si pertenece a una colonia,
-            # utiliza el color de la colonia.
+            # if it belongs to a colony it uses that color
             colony = colony_members.get(id(com))
 
             if colony is not None:
@@ -371,10 +317,7 @@ class SimulationVisualizer:
                 zorder=11
             )
 
-        # --------------------------------------------------------
-        # 7. DIBUJAR HANAN Y HURIN
-        # --------------------------------------------------------
-
+        
         if colonies is not None:
 
             for colony in colonies:
@@ -457,10 +400,6 @@ class SimulationVisualizer:
                         zorder=13
                     )
 
-        # --------------------------------------------------------
-        # 8. CONFIGURACIÓN DEL MAPA
-        # --------------------------------------------------------
-
         self.ax.set_title(
             f"Andean Agricultural Simulation — "
             f"Model 3 — Turn {turn}"
@@ -481,19 +420,11 @@ class SimulationVisualizer:
 
         self.ax.set_aspect("equal")
 
-        # --------------------------------------------------------
-        # 9. PANEL DE INFORMACIÓN
-        # --------------------------------------------------------
-
         info = ""
 
         info += f"MODEL 3 — TURN {turn}\n"
         info += "=" * 32
         info += "\n\n"
-
-        # --------------------------------------------------------
-        # COMUNIDADES NORMALES
-        # --------------------------------------------------------
 
         normal_count = 0
 
@@ -516,10 +447,6 @@ class SimulationVisualizer:
         )
 
         info += "\n"
-
-        # --------------------------------------------------------
-        # INFORMACIÓN DE COLONIAS
-        # --------------------------------------------------------
 
         if colonies is not None:
 
@@ -640,10 +567,6 @@ class SimulationVisualizer:
 
         self.info_text.set_text(info)
 
-        # --------------------------------------------------------
-        # 10. REWARDS
-        # --------------------------------------------------------
-
         self.reward_ax.clear()
 
         if rewards is not None and len(rewards) > 0:
@@ -688,10 +611,6 @@ class SimulationVisualizer:
         self.reward_ax.grid(
             alpha=0.2
         )
-
-        # --------------------------------------------------------
-        # 11. ACTUALIZAR
-        # --------------------------------------------------------
 
         self.fig.canvas.draw()
 

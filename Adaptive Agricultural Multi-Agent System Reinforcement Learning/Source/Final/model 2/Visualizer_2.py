@@ -8,25 +8,22 @@ class SimulationVisualizer:
 
         self.states = states
 
-        # --------------------------------------------------------
-        # CONFIGURACIÓN DE LA FIGURA
-        # --------------------------------------------------------
 
         plt.ion()
 
         self.fig = plt.figure(figsize=(14, 9))
 
-        # Mapa
+        # map
         self.ax = self.fig.add_axes(
             [0.05, 0.30, 0.65, 0.63]
         )
 
-        # Gráfica de rewards
+        # graphic de rewards
         self.reward_ax = self.fig.add_axes(
             [0.05, 0.06, 0.65, 0.18]
         )
 
-        # Panel de información
+        # info panel
         self.info_ax = self.fig.add_axes(
             [0.73, 0.08, 0.25, 0.85]
         )
@@ -42,10 +39,6 @@ class SimulationVisualizer:
             family="monospace"
         )
 
-    # ============================================================
-    # DRAW
-    # ============================================================
-
     def draw(
         self,
         civilization,
@@ -55,13 +48,9 @@ class SimulationVisualizer:
         current_actions=None
     ):
 
-        # --------------------------------------------------------
-        # 1. LIMPIAR MAPA
-        # --------------------------------------------------------
-
         self.ax.clear()
 
-        # Obtener límites reales de la grid
+        # get real limits
         xs = [x for x, y in self.states.keys()]
         ys = [y for x, y in self.states.keys()]
 
@@ -74,9 +63,6 @@ class SimulationVisualizer:
         width = max_x - min_x + 1
         height = max_y - min_y + 1
 
-        # --------------------------------------------------------
-        # 2. CREAR MAPA DEL TERRENO
-        # --------------------------------------------------------
 
         terrain = np.full(
             (height, width),
@@ -96,10 +82,6 @@ class SimulationVisualizer:
             origin="upper",
             interpolation="nearest"
         )
-
-        # --------------------------------------------------------
-        # 3. MAPA DE VISITAS
-        # --------------------------------------------------------
 
         if visits is not None:
 
@@ -126,10 +108,6 @@ class SimulationVisualizer:
                 origin="upper",
                 interpolation="nearest"
             )
-
-        # --------------------------------------------------------
-        # 4. DIBUJAR COMUNIDADES
-        # --------------------------------------------------------
 
         for com in civilization.communities:
 
@@ -170,10 +148,6 @@ class SimulationVisualizer:
                 zorder=11
             )
 
-        # --------------------------------------------------------
-        # 5. CONFIGURACIÓN DEL MAPA
-        # --------------------------------------------------------
-
         self.ax.set_title(
             f"Andean Agricultural Simulation — Turn {turn}"
         )
@@ -192,10 +166,6 @@ class SimulationVisualizer:
         )
 
         self.ax.set_aspect("equal")
-
-        # --------------------------------------------------------
-        # 6. INFORMACIÓN DE LAS COMUNIDADES
-        # --------------------------------------------------------
 
         info = ""
 
@@ -255,9 +225,6 @@ class SimulationVisualizer:
 
         self.info_text.set_text(info)
 
-        # --------------------------------------------------------
-        # 7. GRÁFICA DE REWARDS
-        # --------------------------------------------------------
 
         self.reward_ax.clear()
 
@@ -269,10 +236,6 @@ class SimulationVisualizer:
                 alpha=0.25,
                 linewidth=0.8
             )
-
-            # ----------------------------------------------------
-            # PROMEDIO MÓVIL
-            # ----------------------------------------------------
 
             window = 50
 
@@ -309,9 +272,6 @@ class SimulationVisualizer:
             alpha=0.2
         )
 
-        # --------------------------------------------------------
-        # 8. ACTUALIZAR FIGURA
-        # --------------------------------------------------------
 
         self.fig.canvas.draw()
 
